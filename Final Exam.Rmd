@@ -1,0 +1,153 @@
+---
+title: "Module 1 Final Exam"
+author: "Kayla Brouwer"
+date: "2022-09-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+#Question 1
+
+There are 5 basic R data structures: atomic vector, list, array/matrix, data frame, and factors. Atomic vectors, factors, matrices, and arrays contain homogenous data—meaning all the data needs to be of the same type (i.e. character, numeric, integer, logical, etc.). Lists, data frames, and lists of data frames are heterogeneous and can contain data of different types. Data structures also differ in how the data is presented, not just how it is characterized. Atomic vectors, factors, and lists are 1 dimensional and the output will be one long line of homogenous data for atomic vectors and factors, or a line of heterogenous data for lists. Matrices and data frames are 2-dimensional and contain rows and columns. A matrix will have homogenous data in a table and a data structure will have heterogenous data in a table form. Arrays and a list of data frames is considered n-dimensional. It is important to consider what your data contains and what you want to do with it. A data frame is very important for statistical analysis of experimental data. It allows you to put in a variety of data in a labeled, ordered way, compared to a matrix it contains more data and is not as restrictive. It might be better to use a matrix if you have simple data that needs to be the same data type as a matrix must contain the same data type. 
+
+#Question 2
+
+Set working directory to appropriate location using Ctrl+Shift+H
+
+Part A
+```{r load packages, include=FALSE}
+#I am used to performing some of these tasks using packages. I attempted to only use base R and was having a very hard time getting the code to work, so I loaded libraries that I use for my own data analysis. I don't think they were overly helpful, but it made the process go smoother and quicker. 
+library(tibble)
+library(readr)
+library(tidyverse)
+library(data.table)
+library(stringr)
+
+```
+
+```{r create data set}
+#Create Data Sets
+
+#Read file paths as string and create list of all files with their path
+
+data <- list.files(path="C:/Users/Owner/Documents/Fall 2022 Classes/AFS 505/CropModelResults/CropModelResults", pattern = "*.csv", full.names=F, recursive= T,)
+data
+
+#create new list to receive data output from for loop
+data_list <- list()
+
+#for loop to merge data sets and create new column using the file path names 
+for(i in 1:length(data)){
+  file_name <- data[i]
+  d = fread(file_name, sep=",")
+  
+  #Change columns names
+  colnames(d) <- c("YYYY-MM-DD(DOY)","planting_date", "harvest_date", "yield", "used_biomass", "irrig", "precip")
+
+  # Split the string by " "
+  filenames_vec <- strsplit(file_name, split = " ")[[1]]
+
+  # Create new column to store the information
+  d$PathNames <- filenames_vec[1]
+  data_list[[i]] <- d
+}
+
+#bind all data together by row
+all_data <- rbindlist(data_list)
+str(all_data)
+```
+Part B
+
+This is was not done as efficient as it should have been. I'm sure there was a way to create these new columns in one line of code. This was all I could figure out and in some ways was very helpful to go through each step one at a time so I know exactly what I was doing. I did try to use substr for the County, Crop, LatLong columns but my R was session was aborted so I must have not done it right. 
+```{r add columns}
+#Add Columns
+attach(all_data)
+
+#Create individual columns in all_data dataframe by reading the character strings found in the "PathNames" column that was created in the last part.  
+
+all_data$County <- word(all_data$PathNames,start=1,sep=fixed("/"))
+all_data$Crop <- word(all_data$PathNames,start=2,sep=fixed("/"))
+
+#created a Latitude and Longitude file by first creating a Lat and Long column and then seperating that further using string subsetting
+
+all_data$LatLong <- word(all_data$PathNames,start=3,sep=fixed("/"))
+all_data$Latitude <- substr(all_data$LatLong,1,9)
+all_data$Longitude <- substr(all_data$LatLong,10,19)
+head(all_data)
+
+#clean up data set to remove PathNames and LatLong columns 
+data_final <- subset(all_data, select=-c(PathNames, LatLong))
+head(data_final)
+```
+
+Part C
+```{r rename and export}
+#Rename and Export
+
+#rename columns
+colnames(data_final)[6]="irrigation_demand"
+colnames(data_final)[7]="precipitation"
+head(data_final)
+
+#export csv
+write.csv(data_final, "C:\\Users\\Owner\\Documents\\Fall 2022 Classes\\AFS 505\\CropModelResults\\FinalExamData.csv", row.names=F)
+
+```
+
+Part D
+```{r Summarize}
+#Summarize
+attach(data_final)
+#use tapply to find summarize irrigation demand by Crop and County
+
+annualirrig <- with(data_final, tapply(data_final$irrigation_demand, list(data_final$Crop,data_final$County), sum))
+annualirrig
+```
+
+Part E
+
+Probably much easier way to do this but I was able to accomplish it by taking multiple subests. It was not efficient but it was helpful to see each step.
+
+```{r average}
+attach(data_final)
+
+#create subset of all data needed to find averages 
+subset1<- subset(data_final, County=='WallaWalla' & Crop=='Winter_Wheat' & Latitude =='46.03125N' & Longitude =='118.40625W')
+
+#subset by row (determined rows by looking at data set)
+
+cat("1981-1990") 
+R1 <- subset1[1:10, ]  
+mean(R1$yield)
+
+cat("1991-2000") 
+R2 <- subset1[11:20, ]
+mean(R2$yield)
+
+cat("2001-2019") 
+R3 <- subset1[21:39,] 
+mean(R3$yield)
+
+```
+
+Part F
+```{r highest yield}
+attach(data_final)
+#Created a new column with year by itself (so not connectd to month, day, DOY)
+data_final$year <- word(data_final$`YYYY-MM-DD(DOY)`,start=1,sep=fixed("-"))
+
+#created another subset with all years over 1999 with just corn grain
+data2 <- data_final[ which(year>1999 & Crop=="Corn_grain"),]
+
+#used tapply to take means of yeilds by county
+avgs <- with(data2, tapply(data2$yield, list(data2$County), mean))
+avgs
+```
+
+#Question 3
+
+The data set did include everything we needed it to, and after some exploration and manipulation I was able to perform the set tasks, but I do think it could be described better. I don’t think there was any data missing, but I do think metadata could have been stored in each data set that would have made it very simple to merge and select for specific variables. Columns like county, crop, and location were added but it would not have been a bad idea to include those in the actual data files to make things very clear and to avoid having to read the strings in order to create those columns. A metadata base containing these columns would be useful and could easily be combined with the existing data sets. This would help decrease the amount of time exploring how the data has been saved and give clarity to all the different variable we have in the data set.
+
